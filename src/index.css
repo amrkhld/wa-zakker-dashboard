@@ -1,0 +1,58 @@
+/* Somar Sans — normal width, non-italic only */
+@font-face {
+  font-family: 'Somar Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: url('https://fonts.cdnfonts.com/s/90887/SomarSans-Regular.woff') format('woff');
+}
+@font-face {
+  font-family: 'Somar Sans';
+  font-style: normal;
+  font-weight: 500;
+  src: url('https://fonts.cdnfonts.com/s/90887/SomarSans-Medium.woff') format('woff');
+}
+@font-face {
+  font-family: 'Somar Sans';
+  font-style: normal;
+  font-weight: 600;
+  src: url('https://fonts.cdnfonts.com/s/90887/SomarSans-SemiBold.woff') format('woff');
+}
+@font-face {
+  font-family: 'Somar Sans';
+  font-style: normal;
+  font-weight: 700;
+  src: url('https://fonts.cdnfonts.com/s/90887/SomarSans-Bold.woff') format('woff');
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+body {
+  margin: 0;
+  font-family: 'Somar Sans', sans-serif;
+  font-style: normal;
+  background-color: #ffffff;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page-enter {
+    animation: page-enter 220ms ease-out both;
+  }
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
