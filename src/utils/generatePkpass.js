@@ -31,11 +31,18 @@ function hexToRgb(hex) {
 }
 
 /**
- * SHA-1 hash of a string / binary data (returns hex string)
+ * SHA-1 hash of a Uint8Array (returns hex string).
+ * Converts to a binary string so node-forge processes each byte correctly,
+ * avoiding corruption of multi-byte UTF-8 characters (e.g. Arabic text).
  */
-function sha1Hex(data) {
+function sha1Hex(bytes) {
   const md = forge.md.sha1.create();
-  md.update(data, "raw");
+  // Convert Uint8Array to a binary string where each char is one byte (0-255)
+  let binStr = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binStr += String.fromCharCode(bytes[i]);
+  }
+  md.update(binStr, "raw");
   return md.digest().toHex();
 }
 
@@ -209,15 +216,16 @@ export async function generatePkpass(card) {
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Collect all pass files as { filename: binaryString } */
+  /* 3. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
+  const encoder = new TextEncoder();
   const files = {
-    "pass.json": passJsonStr,
-    "icon.png": String.fromCharCode(...new Uint8Array(icon1x)),
-    "icon@2x.png": String.fromCharCode(...new Uint8Array(icon2x)),
-    "icon@3x.png": String.fromCharCode(...new Uint8Array(icon3x)),
+    "pass.json": encoder.encode(passJsonStr),
+    "icon.png": new Uint8Array(icon1x),
+    "icon@2x.png": new Uint8Array(icon2x),
+    "icon@3x.png": new Uint8Array(icon3x),
   };
 
-  /* 4. Build manifest.json (SHA-1 hash of every file) */
+  /* 4. Build manifest.json (SHA-1 hash of every file's actual bytes) */
   const manifest = {};
   for (const [name, data] of Object.entries(files)) {
     manifest[name] = sha1Hex(data);
@@ -229,10 +237,9 @@ export async function generatePkpass(card) {
 
   /* 6. Package everything into a ZIP (.pkpass) */
   const zip = new JSZip();
-  zip.file("pass.json", passJsonStr);
-  zip.file("icon.png", icon1x);
-  zip.file("icon@2x.png", icon2x);
-  zip.file("icon@3x.png", icon3x);
+  for (const [name, data] of Object.entries(files)) {
+    zip.file(name, data);
+  }
   zip.file("manifest.json", manifestStr);
   zip.file("signature", signatureDer, { binary: true });
 
