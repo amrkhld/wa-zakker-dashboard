@@ -27,7 +27,7 @@ export default function Login() {
       if (error) throw error;
       
       if (data.user) {
-        navigate("/stats");
+        navigate("/");
       }
     } catch (err) {
       console.error("Login error:", err);
