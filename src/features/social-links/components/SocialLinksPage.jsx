@@ -95,7 +95,7 @@ export default function SocialLinksPage() {
 
   if (loading) {
     return (
-      <div className="space-y-8 px-10 page-enter">
+      <div className="space-y-8 px-0 sm:px-6 page-enter">
         <PageHeader
           title="روابط التواصل"
           description="تعديل روابط وحسابات التواصل الاجتماعي"
@@ -118,7 +118,7 @@ export default function SocialLinksPage() {
   }
 
   return (
-    <div className="space-y-8 px-10 page-enter">
+    <div className="space-y-8 px-0 sm:px-6 page-enter">
       <PageHeader
         title="روابط التواصل"
         description="تعديل روابط وحسابات التواصل الاجتماعي"

@@ -56,7 +56,7 @@ export default function OverviewPage() {
 
   if (loading) {
     return (
-      <div className="space-y-8 px-10 page-enter">
+      <div className="space-y-8 px-0 sm:px-6 page-enter">
         <PageHeader
           title="نظرة عامة"
           description="إحصائيات التحميلات والإضافة للمحفظة"
@@ -89,7 +89,7 @@ export default function OverviewPage() {
   }
 
   return (
-    <div className="space-y-8 px-10 page-enter">
+    <div className="space-y-8 px-0 sm:px-6 page-enter">
       <PageHeader
         title="نظرة عامة"
         description="إحصائيات التحميلات والإضافة للمحفظة"

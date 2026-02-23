@@ -5,6 +5,7 @@ import {
   CreditCard2Front,
   Link45deg,
   BoxArrowRight,
+  XLg,
 } from "react-bootstrap-icons";
 import logo from "../../assets/logo/logo-colored.svg";
 import { supabase } from "../../utils/supabase";
@@ -32,7 +33,7 @@ const navItems = [
   },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -41,10 +42,21 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="fixed inset-y-0 right-0 z-30 flex w-64 flex-col bg-[#F2F2F2]" style={{borderTopLeftRadius: '22px', borderBottomLeftRadius: '22px'}}>
+    <aside
+      className={`fixed inset-y-0 right-0 z-40 flex w-64 flex-col bg-[#F2F2F2] transition-transform duration-200
+        ${isOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}
+      style={{borderTopLeftRadius: '22px', borderBottomLeftRadius: '22px'}}
+    >
       {/* Logo */}
-      <div className="flex items-center justify-center px-6 py-8">
+      <div className="flex items-center justify-between px-6 py-8">
         <img src={logo} alt="وَذَكِّرْ" className="h-12 w-auto" />
+        <button
+          onClick={onClose}
+          className="md:hidden flex h-8 w-8 items-center justify-center rounded-full text-gray-400 hover:text-primary transition-colors"
+          aria-label="إغلاق القائمة"
+        >
+          <XLg size={14} />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -54,6 +66,7 @@ export default function Sidebar() {
             key={path}
             to={path}
             end={path === "/"}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-pill px-4 py-3 text-sm font-medium transition-colors ${
                 isActive

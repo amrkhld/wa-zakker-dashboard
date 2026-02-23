@@ -73,7 +73,7 @@ export default function StatsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-8 px-10 page-enter">
+      <div className="space-y-8 px-0 sm:px-6 page-enter">
         <PageHeader
           title="الإحصائيات"
           description="تعديل القيم المعروضة في الصفحة الرئيسية"
@@ -94,7 +94,7 @@ export default function StatsPage() {
   }
 
   return (
-    <div className="space-y-8 px-10 page-enter">
+    <div className="space-y-8 px-0 sm:px-6 page-enter">
       <PageHeader
         title="الإحصائيات"
         description="تعديل القيم المعروضة في الصفحة الرئيسية"
