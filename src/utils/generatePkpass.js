@@ -111,7 +111,7 @@ async function renderDhikrStrip(text, hex) {
   /* ── Design tokens (pt) ── */
   const PAD_TOP_PT   = 14;
   const PAD_BOT_PT   = 14;
-  const PAD_X_PT     = 16;
+  const PAD_X_PT     = 28;
   const BOX_PAD_X_PT = 14;
   const BOX_PAD_Y_PT = 14;
   const BOX_RADIUS_PT = 14;
