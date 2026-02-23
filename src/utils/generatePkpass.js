@@ -73,6 +73,94 @@ async function resizeImage(arrayBuffer, targetWidth, targetHeight) {
 }
 
 /**
+ * Render dhikr text as a strip image for the Apple Wallet pass.
+ * This bypasses Apple's field line-limit by drawing text onto a PNG.
+ * Height adapts to text length (capped at 280pt for very long dhikrs).
+ *
+ * @param {string} title - Dhikr title
+ * @param {string} text  - Full dhikr text
+ * @param {string} hex   - Background hex color (#RRGGBB)
+ * @returns {Promise<{ buffer: ArrayBuffer, ptWidth: number, ptHeight: number }>}
+ */
+async function renderDhikrStrip(title, text, hex) {
+  const SCALE = 3; // render at 3× for @3x asset
+  const PT_W = 375; // Apple Wallet strip width (pt)
+  const PX_W = PT_W * SCALE;
+
+  const TITLE_SIZE_PT = 18;
+  const TEXT_SIZE_PT = 16;
+  const LINE_H_PT = 28;
+  const PAD_X_PT = 20;
+  const PAD_Y_PT = 16;
+  const TITLE_GAP_PT = 10; // gap between title and dhikr text
+  const MAX_H_PT = 280;
+
+  const titleFontPx = TITLE_SIZE_PT * SCALE;
+  const textFontPx = TEXT_SIZE_PT * SCALE;
+  const lineH = LINE_H_PT * SCALE;
+  const padX = PAD_X_PT * SCALE;
+  const padY = PAD_Y_PT * SCALE;
+  const titleGap = TITLE_GAP_PT * SCALE;
+  const maxLineW = PX_W - padX * 2;
+  const fontFamily = '"Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
+
+  /* ── measure text lines ── */
+  const tmp = new OffscreenCanvas(PX_W, 100);
+  const tCtx = tmp.getContext("2d");
+  tCtx.font = `${textFontPx}px ${fontFamily}`;
+  tCtx.direction = "rtl";
+
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = words[0] || "";
+  for (let i = 1; i < words.length; i++) {
+    const test = cur + " " + words[i];
+    if (tCtx.measureText(test).width > maxLineW) {
+      lines.push(cur);
+      cur = words[i];
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+
+  /* ── calculate canvas height ── */
+  const titleRowH = titleFontPx + titleGap;
+  const rawH = padY + titleRowH + lines.length * lineH + padY;
+  const PX_H = Math.min(Math.max(rawH, 123 * SCALE), MAX_H_PT * SCALE);
+
+  /* ── draw ── */
+  const canvas = new OffscreenCanvas(PX_W, PX_H);
+  const ctx = canvas.getContext("2d");
+
+  // background
+  ctx.fillStyle = hex;
+  ctx.fillRect(0, 0, PX_W, PX_H);
+
+  // title (bold, right-aligned)
+  ctx.fillStyle = "rgba(255,255,255,0.85)";
+  ctx.font = `bold ${titleFontPx}px ${fontFamily}`;
+  ctx.textAlign = "right";
+  ctx.direction = "rtl";
+  ctx.textBaseline = "top";
+  ctx.fillText(title, PX_W - padX, padY);
+
+  // dhikr lines
+  ctx.fillStyle = "#FFFFFF";
+  ctx.font = `${textFontPx}px ${fontFamily}`;
+  let y = padY + titleRowH;
+  for (const line of lines) {
+    if (y + lineH > PX_H) break; // respect max height
+    ctx.fillText(line, PX_W - padX, y);
+    y += lineH;
+  }
+
+  const blob = await canvas.convertToBlob({ type: "image/png" });
+  const buffer = await blob.arrayBuffer();
+  return { buffer, ptWidth: PT_W, ptHeight: Math.round(PX_H / SCALE) };
+}
+
+/**
  * Create the PKCS#7 detached signature for the manifest.
  * Returns the DER-encoded signature as a binary string.
  */
@@ -160,7 +248,7 @@ function signManifest(manifestJson) {
  * @returns {Promise<Blob>} - The signed .pkpass file as a Blob
  */
 export async function generatePkpass(card) {
-  /* 1. Build pass.json */
+  /* 1. Build pass.json — strip image carries the dhikr text visually */
   const passJson = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_IDENTIFIER,
@@ -171,22 +259,7 @@ export async function generatePkpass(card) {
     foregroundColor: "rgb(255, 255, 255)",
     backgroundColor: hexToRgb(card.color),
     labelColor: "rgb(200, 200, 200)",
-    generic: {
-      headerFields: [
-        {
-          key: "title",
-          label: "",
-          value: card.title,
-          textAlignment: "PKTextAlignmentNatural",
-        },
-      ],
-      primaryFields: [
-        {
-          key: "dhikr",
-          label: "",
-          value: card.dhikr,
-        },
-      ],
+    storeCard: {
       backFields: [
         {
           key: "dhikrName",
@@ -220,13 +293,19 @@ export async function generatePkpass(card) {
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Prepare logo images (displayed on the pass, top-left) */
+  /* 3. Prepare logo images (displayed on the pass, top-left, 2.53:1 aspect ratio) */
   const originalLogo = await fetchBinary("/logo-flat-white-pass.png");
-  const logo1x = await resizeImage(originalLogo, 50, 50);
-  const logo2x = await resizeImage(originalLogo, 100, 100);
-  const logo3x = await resizeImage(originalLogo, 150, 150);
+  const logo1x = await resizeImage(originalLogo, 127, 50);
+  const logo2x = await resizeImage(originalLogo, 253, 100);
+  const logo3x = await resizeImage(originalLogo, 380, 150);
 
-  /* 4. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
+  /* 4. Render dhikr text as a strip image (full text, proper wrapping) */
+  const { buffer: strip3xBuf, ptWidth: stripW, ptHeight: stripH } =
+    await renderDhikrStrip(card.title, card.dhikr, card.color);
+  const strip2x = await resizeImage(strip3xBuf, stripW * 2, stripH * 2);
+  const strip1x = await resizeImage(strip3xBuf, stripW, stripH);
+
+  /* 5. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
   const encoder = new TextEncoder();
   const files = {
     "pass.json": encoder.encode(passJsonStr),
@@ -236,19 +315,22 @@ export async function generatePkpass(card) {
     "logo.png": new Uint8Array(logo1x),
     "logo@2x.png": new Uint8Array(logo2x),
     "logo@3x.png": new Uint8Array(logo3x),
+    "strip.png": new Uint8Array(strip1x),
+    "strip@2x.png": new Uint8Array(strip2x),
+    "strip@3x.png": new Uint8Array(strip3xBuf),
   };
 
-  /* 5. Build manifest.json (SHA-1 hash of every file's actual bytes) */
+  /* 6. Build manifest.json (SHA-1 hash of every file's actual bytes) */
   const manifest = {};
   for (const [name, data] of Object.entries(files)) {
     manifest[name] = sha1Hex(data);
   }
   const manifestStr = JSON.stringify(manifest);
 
-  /* 6. Sign the manifest */
+  /* 7. Sign the manifest */
   const signatureDer = signManifest(manifestStr);
 
-  /* 7. Package everything into a ZIP (.pkpass) */
+  /* 8. Package everything into a ZIP (.pkpass) */
   const zip = new JSZip();
   for (const [name, data] of Object.entries(files)) {
     zip.file(name, data);
