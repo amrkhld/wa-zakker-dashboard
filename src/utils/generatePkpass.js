@@ -170,34 +170,38 @@ export async function generatePkpass(card) {
     description: card.title,
     foregroundColor: "rgb(255, 255, 255)",
     backgroundColor: hexToRgb(card.color),
-    labelColor: "rgb(255, 255, 255)",
+    labelColor: "rgb(200, 200, 200)",
     generic: {
       headerFields: [
         {
-          key: "category",
-          label: "التصنيف",
-          value: card.category,
+          key: "title",
+          label: "",
+          value: card.title,
+          textAlignment: "PKTextAlignmentNatural",
         },
       ],
       primaryFields: [
         {
-          key: "title",
-          label: "الذكر",
-          value: card.title,
-        },
-      ],
-      secondaryFields: [
-        {
           key: "dhikr",
-          label: "الذكر",
+          label: "",
           value: card.dhikr,
         },
       ],
       backFields: [
         {
+          key: "dhikrName",
+          label: "الذكر",
+          value: card.title,
+        },
+        {
           key: "fullDhikr",
-          label: card.title,
+          label: "نص الذكر",
           value: card.dhikr,
+        },
+        {
+          key: "category",
+          label: "التصنيف",
+          value: card.category || "",
         },
         {
           key: "app",
@@ -210,32 +214,41 @@ export async function generatePkpass(card) {
 
   const passJsonStr = JSON.stringify(passJson);
 
-  /* 2. Prepare icon images */
+  /* 2. Prepare icon images (notification icon) */
   const originalIcon = await fetchBinary("/icon.png");
   const icon1x = await resizeImage(originalIcon, 29, 29);
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
+  /* 3. Prepare logo images (displayed on the pass, top-left) */
+  const originalLogo = await fetchBinary("/logo-flat-white-pass.png");
+  const logo1x = await resizeImage(originalLogo, 50, 50);
+  const logo2x = await resizeImage(originalLogo, 100, 100);
+  const logo3x = await resizeImage(originalLogo, 150, 150);
+
+  /* 4. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
   const encoder = new TextEncoder();
   const files = {
     "pass.json": encoder.encode(passJsonStr),
     "icon.png": new Uint8Array(icon1x),
     "icon@2x.png": new Uint8Array(icon2x),
     "icon@3x.png": new Uint8Array(icon3x),
+    "logo.png": new Uint8Array(logo1x),
+    "logo@2x.png": new Uint8Array(logo2x),
+    "logo@3x.png": new Uint8Array(logo3x),
   };
 
-  /* 4. Build manifest.json (SHA-1 hash of every file's actual bytes) */
+  /* 5. Build manifest.json (SHA-1 hash of every file's actual bytes) */
   const manifest = {};
   for (const [name, data] of Object.entries(files)) {
     manifest[name] = sha1Hex(data);
   }
   const manifestStr = JSON.stringify(manifest);
 
-  /* 5. Sign the manifest */
+  /* 6. Sign the manifest */
   const signatureDer = signManifest(manifestStr);
 
-  /* 6. Package everything into a ZIP (.pkpass) */
+  /* 7. Package everything into a ZIP (.pkpass) */
   const zip = new JSZip();
   for (const [name, data] of Object.entries(files)) {
     zip.file(name, data);
