@@ -73,91 +73,142 @@ async function resizeImage(arrayBuffer, targetWidth, targetHeight) {
 }
 
 /**
- * Render dhikr text as a strip image for the Apple Wallet pass.
- * This bypasses Apple's field line-limit by drawing text onto a PNG.
- * Height adapts to text length (capped at 280pt for very long dhikrs).
- *
- * @param {string} title - Dhikr title
- * @param {string} text  - Full dhikr text
- * @param {string} hex   - Background hex color (#RRGGBB)
- * @returns {Promise<{ buffer: ArrayBuffer, ptWidth: number, ptHeight: number }>}
+ * Parse hex color (#RRGGBB) to { r, g, b }
  */
-async function renderDhikrStrip(title, text, hex) {
-  const SCALE = 3; // render at 3× for @3x asset
-  const PT_W = 375; // Apple Wallet strip width (pt)
-  const PX_W = PT_W * SCALE;
+function parseHex(hex) {
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  };
+}
 
-  const TITLE_SIZE_PT = 18;
-  const TEXT_SIZE_PT = 16;
-  const LINE_H_PT = 28;
-  const PAD_X_PT = 20;
-  const PAD_Y_PT = 16;
-  const TITLE_GAP_PT = 10; // gap between title and dhikr text
-  const MAX_H_PT = 280;
+/**
+ * Render the dhikr text into a strip image at Apple's EXACT allowed
+ * dimensions (375 × 123 pt). iOS clips anything taller, so we
+ * never exceed this height.
+ *
+ * Strategy:
+ *  1. Auto-size font from MAX → MIN to fit as many lines as possible.
+ *  2. If text still overflows at MIN font, render only the lines that
+ *     fit — full text is always available on the back of the pass.
+ *  3. The canvas is exactly 1125 × 369 px (375 × 123 pt @3×).
+ *     Nothing is cropped because the image matches Apple's spec.
+ *
+ * @param {string} text - Full dhikr text
+ * @param {string} hex  - Brand hex color (#RRGGBB)
+ * @returns {Promise<ArrayBuffer>} - PNG buffer at @3× (1125 × 369)
+ */
+async function renderDhikrStrip(text, hex) {
+  const SCALE = 3;
+  const PT_W = 375;
+  const PT_H = 123;          // Apple's storeCard strip height — FIXED
+  const PX_W = PT_W * SCALE; // 1125
+  const PX_H = PT_H * SCALE; // 369
 
-  const titleFontPx = TITLE_SIZE_PT * SCALE;
-  const textFontPx = TEXT_SIZE_PT * SCALE;
-  const lineH = LINE_H_PT * SCALE;
-  const padX = PAD_X_PT * SCALE;
-  const padY = PAD_Y_PT * SCALE;
-  const titleGap = TITLE_GAP_PT * SCALE;
-  const maxLineW = PX_W - padX * 2;
+  const { r, g, b } = parseHex(hex);
+
+  /* ── Design tokens (pt) ── */
+  const PAD_TOP_PT   = 14;
+  const PAD_BOT_PT   = 14;
+  const PAD_X_PT     = 16;
+  const BOX_PAD_X_PT = 14;
+  const BOX_PAD_Y_PT = 14;
+  const BOX_RADIUS_PT = 14;
+  const MAX_FONT_PT  = 16;
+  const MIN_FONT_PT  = 9;
+
   const fontFamily = '"Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
+  const maxTextW = PX_W - (PAD_X_PT + BOX_PAD_X_PT) * 2 * SCALE;
 
-  /* ── measure text lines ── */
-  const tmp = new OffscreenCanvas(PX_W, 100);
-  const tCtx = tmp.getContext("2d");
-  tCtx.font = `${textFontPx}px ${fontFamily}`;
-  tCtx.direction = "rtl";
-
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines = [];
-  let cur = words[0] || "";
-  for (let i = 1; i < words.length; i++) {
-    const test = cur + " " + words[i];
-    if (tCtx.measureText(test).width > maxLineW) {
-      lines.push(cur);
-      cur = words[i];
-    } else {
-      cur = test;
+  /* ── Word-wrap helper ── */
+  function measureLines(fontPt) {
+    const fontPx = fontPt * SCALE;
+    const tmp = new OffscreenCanvas(PX_W, 100);
+    const tCtx = tmp.getContext("2d");
+    tCtx.font = `500 ${fontPx}px ${fontFamily}`;
+    tCtx.direction = "rtl";
+    const words = text.split(/\s+/).filter(Boolean);
+    const result = [];
+    let cur = words[0] || "";
+    for (let i = 1; i < words.length; i++) {
+      const test = cur + " " + words[i];
+      if (tCtx.measureText(test).width > maxTextW) {
+        result.push(cur);
+        cur = words[i];
+      } else {
+        cur = test;
+      }
     }
+    if (cur) result.push(cur);
+    return result;
   }
-  if (cur) lines.push(cur);
 
-  /* ── calculate canvas height ── */
-  const titleRowH = titleFontPx + titleGap;
-  const rawH = padY + titleRowH + lines.length * lineH + padY;
-  const PX_H = Math.min(Math.max(rawH, 123 * SCALE), MAX_H_PT * SCALE);
+  /* ── How many lines fit at a given font size ── */
+  function maxVisibleLines(fontPt) {
+    const lineHPt = Math.round(fontPt * 1.8);
+    const usable = PT_H - PAD_TOP_PT - PAD_BOT_PT - BOX_PAD_Y_PT * 2;
+    return Math.floor(usable / lineHPt);
+  }
 
-  /* ── draw ── */
+  /* ── Pick best font: largest where ALL lines fit.
+        If even MIN_FONT can't fit all, use MIN_FONT and show what fits. ── */
+  let fontPt = MAX_FONT_PT;
+  let lines = measureLines(fontPt);
+  for (; fontPt > MIN_FONT_PT; fontPt--) {
+    lines = measureLines(fontPt);
+    if (lines.length <= maxVisibleLines(fontPt)) break;
+  }
+  fontPt = Math.max(fontPt, MIN_FONT_PT);
+  lines = measureLines(fontPt);
+
+  const lineHPt = Math.round(fontPt * 1.8);
+  const maxLines = maxVisibleLines(fontPt);
+  const visibleLines = lines.slice(0, maxLines);
+
+  /* ── Scale to px ── */
+  const padTop  = PAD_TOP_PT * SCALE;
+  const padX    = PAD_X_PT * SCALE;
+  const boxPadX = BOX_PAD_X_PT * SCALE;
+  const boxPadY = BOX_PAD_Y_PT * SCALE;
+  const boxRadius = BOX_RADIUS_PT * SCALE;
+  const fontPx  = fontPt * SCALE;
+  const lineH   = lineHPt * SCALE;
+
+  /* ── Draw on FIXED-SIZE canvas ── */
   const canvas = new OffscreenCanvas(PX_W, PX_H);
   const ctx = canvas.getContext("2d");
 
-  // background
-  ctx.fillStyle = hex;
+  // White background
+  ctx.fillStyle = "#FFFFFF";
   ctx.fillRect(0, 0, PX_W, PX_H);
 
-  // title (bold, right-aligned)
-  ctx.fillStyle = "rgba(255,255,255,0.85)";
-  ctx.font = `bold ${titleFontPx}px ${fontFamily}`;
+  // Tinted rounded box (fills most of the strip)
+  const boxX = padX;
+  const boxY = padTop;
+  const boxW = PX_W - padX * 2;
+  const boxH = PX_H - padTop - PAD_BOT_PT * SCALE;
+
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.04)`;
+  ctx.beginPath();
+  ctx.roundRect(boxX, boxY, boxW, boxH, boxRadius);
+  ctx.fill();
+
+  // Dhikr text (RTL, right-aligned)
+  ctx.fillStyle = hex;
+  ctx.font = `500 ${fontPx}px ${fontFamily}`;
   ctx.textAlign = "right";
   ctx.direction = "rtl";
   ctx.textBaseline = "top";
-  ctx.fillText(title, PX_W - padX, padY);
 
-  // dhikr lines
-  ctx.fillStyle = "#FFFFFF";
-  ctx.font = `${textFontPx}px ${fontFamily}`;
-  let y = padY + titleRowH;
-  for (const line of lines) {
-    if (y + lineH > PX_H) break; // respect max height
-    ctx.fillText(line, PX_W - padX, y);
+  let y = boxY + boxPadY;
+  for (const line of visibleLines) {
+    ctx.fillText(line, boxX + boxW - boxPadX, y);
     y += lineH;
   }
 
   const blob = await canvas.convertToBlob({ type: "image/png" });
-  const buffer = await blob.arrayBuffer();
-  return { buffer, ptWidth: PT_W, ptHeight: Math.round(PX_H / SCALE) };
+  return blob.arrayBuffer();
 }
 
 /**
@@ -248,7 +299,8 @@ function signManifest(manifestJson) {
  * @returns {Promise<Blob>} - The signed .pkpass file as a Blob
  */
 export async function generatePkpass(card) {
-  /* 1. Build pass.json — strip image carries the dhikr text visually */
+  /* 1. Build pass.json — storeCard with strip image for dhikr text.
+        Title is in headerFields; full dhikr on back of pass. */
   const passJson = {
     formatVersion: 1,
     passTypeIdentifier: PASS_TYPE_IDENTIFIER,
@@ -256,10 +308,26 @@ export async function generatePkpass(card) {
     teamIdentifier: TEAM_IDENTIFIER,
     organizationName: ORG_NAME,
     description: card.title,
-    foregroundColor: "rgb(255, 255, 255)",
-    backgroundColor: hexToRgb(card.color),
-    labelColor: "rgb(200, 200, 200)",
+    logoText: "وَذَكِّرْ",
+    foregroundColor: hexToRgb(card.color),
+    backgroundColor: "rgb(255, 255, 255)",
+    labelColor: hexToRgb(card.color),
     storeCard: {
+      headerFields: [
+        {
+          key: "title",
+          label: "الذكر",
+          value: card.title,
+        },
+      ],
+      secondaryFields: [
+        {
+          key: "category",
+          label: card.category || "",
+          value: " ",
+          textAlignment: "PKTextAlignmentRight",
+        },
+      ],
       backFields: [
         {
           key: "dhikrName",
@@ -272,7 +340,7 @@ export async function generatePkpass(card) {
           value: card.dhikr,
         },
         {
-          key: "category",
+          key: "categoryBack",
           label: "التصنيف",
           value: card.category || "",
         },
@@ -293,19 +361,31 @@ export async function generatePkpass(card) {
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Prepare logo images (displayed on the pass, top-left, 2.53:1 aspect ratio) */
-  const originalLogo = await fetchBinary("/logo-flat-white-pass.png");
-  const logo1x = await resizeImage(originalLogo, 127, 50);
-  const logo2x = await resizeImage(originalLogo, 253, 100);
-  const logo3x = await resizeImage(originalLogo, 380, 150);
+  /* 3. Prepare logo images (symbol in the header, next to logoText) */
+  const originalSymbol = await fetchBinary("/symbol-pass-bg-transparent.png");
+  const logo1x = await resizeImage(originalSymbol, 50, 50);
+  const logo2x = await resizeImage(originalSymbol, 100, 100);
+  const logo3x = await resizeImage(originalSymbol, 150, 150);
 
-  /* 4. Render dhikr text as a strip image (full text, proper wrapping) */
-  const { buffer: strip3xBuf, ptWidth: stripW, ptHeight: stripH } =
-    await renderDhikrStrip(card.title, card.dhikr, card.color);
-  const strip2x = await resizeImage(strip3xBuf, stripW * 2, stripH * 2);
-  const strip1x = await resizeImage(strip3xBuf, stripW, stripH);
+  /* 4. Prepare footer images (brand logo at bottom of pass, above barcode area) */
+  const originalFooterLogo = await fetchBinary("/logo-pass-bg-transparent.png");
+  // Determine aspect ratio to compute proper height
+  const footerBlob = new Blob([originalFooterLogo], { type: "image/png" });
+  const footerBitmap = await createImageBitmap(footerBlob);
+  const footerAspect = footerBitmap.width / footerBitmap.height;
+  // Footer max width = 286pt. Calculate height preserving aspect ratio.
+  const FOOTER_W_1X = 286;
+  const FOOTER_H_1X = Math.round(FOOTER_W_1X / footerAspect);
+  const footer1x = await resizeImage(originalFooterLogo, FOOTER_W_1X, FOOTER_H_1X);
+  const footer2x = await resizeImage(originalFooterLogo, FOOTER_W_1X * 2, FOOTER_H_1X * 2);
+  const footer3x = await resizeImage(originalFooterLogo, FOOTER_W_1X * 3, FOOTER_H_1X * 3);
 
-  /* 5. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
+  /* 5. Render dhikr strip at exact Apple dimensions (375×123 pt @3×) */
+  const strip3xBuf = await renderDhikrStrip(card.dhikr, card.color);
+  const strip2x = await resizeImage(strip3xBuf, 375 * 2, 123 * 2);
+  const strip1x = await resizeImage(strip3xBuf, 375, 123);
+
+  /* 6. Collect all pass files as Uint8Array so hashing and zipping use identical bytes */
   const encoder = new TextEncoder();
   const files = {
     "pass.json": encoder.encode(passJsonStr),
@@ -315,22 +395,25 @@ export async function generatePkpass(card) {
     "logo.png": new Uint8Array(logo1x),
     "logo@2x.png": new Uint8Array(logo2x),
     "logo@3x.png": new Uint8Array(logo3x),
+    "footer.png": new Uint8Array(footer1x),
+    "footer@2x.png": new Uint8Array(footer2x),
+    "footer@3x.png": new Uint8Array(footer3x),
     "strip.png": new Uint8Array(strip1x),
     "strip@2x.png": new Uint8Array(strip2x),
     "strip@3x.png": new Uint8Array(strip3xBuf),
   };
 
-  /* 6. Build manifest.json (SHA-1 hash of every file's actual bytes) */
+  /* 7. Build manifest.json (SHA-1 hash of every file's actual bytes) */
   const manifest = {};
   for (const [name, data] of Object.entries(files)) {
     manifest[name] = sha1Hex(data);
   }
   const manifestStr = JSON.stringify(manifest);
 
-  /* 7. Sign the manifest */
+  /* 8. Sign the manifest */
   const signatureDer = signManifest(manifestStr);
 
-  /* 8. Package everything into a ZIP (.pkpass) */
+  /* 9. Package everything into a ZIP (.pkpass) */
   const zip = new JSZip();
   for (const [name, data] of Object.entries(files)) {
     zip.file(name, data);
