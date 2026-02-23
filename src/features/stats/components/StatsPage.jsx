@@ -25,7 +25,7 @@ export default function StatsPage() {
         .from('stats')
         .select('*')
         .order('created_at', { ascending: true });
-      
+
       if (error) throw error;
       if (data) setStats(data);
     } catch (error) {

@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
+  HouseFill,
   BarChartFill,
   CreditCard2Front,
   Link45deg,
@@ -9,6 +10,11 @@ import logo from "../../assets/logo/logo-colored.svg";
 import { supabase } from "../../utils/supabase";
 
 const navItems = [
+  {
+    label: "الرئيسية",
+    path: "/",
+    icon: HouseFill,
+  },
   {
     label: "الإحصائيات",
     path: "/stats",
@@ -47,6 +53,7 @@ export default function Sidebar() {
           <NavLink
             key={path}
             to={path}
+            end={path === "/"}
             className={({ isActive }) =>
               `flex items-center gap-3 rounded-pill px-4 py-3 text-sm font-medium transition-colors ${
                 isActive

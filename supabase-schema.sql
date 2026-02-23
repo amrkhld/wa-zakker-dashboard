@@ -167,3 +167,21 @@ INSERT INTO public.dhikr_cards (title, category, dhikr, icon, color, sort_order)
     ('أذكار الصلاة', 'صلاة', 'أستغفر الله', 'HandIndexThumbFill', '#398CBF', 4),
     ('أذكار القرآن', 'قرآن', 'اللهم ارحمني بالقرآن', 'BookFill', '#11538C', 5),
     ('أدعية مختارة', 'دعاء', 'اللهم آتنا في الدنيا حسنة', 'HeartFill', '#398CBF', 6);
+
+-- --------------------------------------------------------
+-- Table: card_downloads
+-- Tracks each time a card is downloaded/added to wallet
+-- --------------------------------------------------------
+CREATE TABLE public.card_downloads (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    card_id UUID REFERENCES public.dhikr_cards(id) ON DELETE CASCADE,
+    downloaded_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.card_downloads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public insert access on card_downloads" 
+    ON public.card_downloads FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated read access on card_downloads" 
+    ON public.card_downloads FOR SELECT USING (auth.role() = 'authenticated');
