@@ -41,7 +41,7 @@ export default function DashboardLayout() {
         <img
           src={symbol}
           aria-hidden="true"
-          className="pointer-events-none select-none absolute -left-24 -bottom-24 w-[490px] opacity-[0.1]"
+          className="pointer-events-none select-none fixed -left-24 -bottom-24 w-[490px] opacity-[0.1]"
         />
 
         <div className="relative z-10 place-self-center w-full max-w-4xl px-8 py-8">

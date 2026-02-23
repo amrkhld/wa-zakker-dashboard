@@ -105,7 +105,7 @@ export default function OverviewPage() {
               </div>
               <div>
                 <p className="text-xs text-gray-400">{label}</p>
-                <p className="text-2xl font-bold text-primary" dir="ltr">
+                <p className="text-2xl font-bold text-primary">
                   {value}
                 </p>
               </div>

@@ -327,7 +327,7 @@ export default function DhikrCardsPage() {
                 </div>
 
                 {/* Dhikr */}
-                <p className="text-xs font-medium leading-relaxed" style={{ color: card.color }}>
+                <p className="text-xs font-medium leading-relaxed line-clamp-3 min-h-[3.75rem] max-h-[3.75rem]" style={{ color: card.color }}>
                   {card.dhikr}
                 </p>
 
