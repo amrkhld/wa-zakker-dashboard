@@ -12,15 +12,15 @@ import { supabase } from "../../utils/supabase";
 
 const navItems = [
   {
-    label: "الرئيسية",
-    path: "/",
-    icon: HouseFill,
-  },
-  {
     label: "الإحصائيات",
-    path: "/stats",
+    path: "/",
     icon: BarChartFill,
   },
+  // {
+  //   label: "الإحصائيات",
+  //   path: "/stats",
+  //   icon: BarChartFill,
+  // },
   {
     label: "بطاقات الأذكار",
     path: "/dhikr-cards",
