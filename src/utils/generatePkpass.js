@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import forge from "node-forge";
+import symbolWhiteUrl from "../assets/logo/symbol-pass-white-bg-transparent.png";
 
 /* ─── Apple Wallet pass credentials (from dhikr cert/info.json) ─── */
 const TEAM_IDENTIFIER = "D6GJ37W6QP";
@@ -132,7 +133,7 @@ async function renderDhikrStrip(text, hex) {
   const MAX_FONT_PT = 16;
   const MIN_FONT_PT = 9;
 
-  const fontFamily = '"Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
+  const fontFamily = '"Somar Sans", "Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
   const maxTextW = PX_W - (PAD_X_PT + BOX_PAD_X_PT) * 2 * SCALE;
 
   /* ── Word-wrap helper ── */
@@ -208,12 +209,8 @@ async function renderDhikrStrip(text, hex) {
   ctx.roundRect(boxX, boxY, boxW, boxH, boxRadius);
   ctx.fill();
 
-  // Dhikr text (RTL, right-aligned) — lightened for dark bg
-  const { r: tr, g: tg, b: tb } = parseHex(hex);
-  const textR = Math.round(tr + (255 - tr) * 0.45);
-  const textG = Math.round(tg + (255 - tg) * 0.45);
-  const textB = Math.round(tb + (255 - tb) * 0.45);
-  ctx.fillStyle = `rgb(${textR}, ${textG}, ${textB})`;
+  // Dhikr text (RTL, right-aligned) — white on dark bg
+  ctx.fillStyle = "#FFFFFF";
   ctx.font = `500 ${fontPx}px ${fontFamily}`;
   ctx.textAlign = "right";
   ctx.direction = "rtl";
@@ -327,9 +324,9 @@ export async function generatePkpass(card) {
     organizationName: ORG_NAME,
     description: card.title,
     logoText: "وَذَكِّرْ",
-    foregroundColor: lightenHex(card.color, 0.45),
+    foregroundColor: "rgb(255, 255, 255)",
     backgroundColor: "rgb(20, 20, 25)",
-    labelColor: lightenHex(card.color, 0.55),
+    labelColor: "rgb(255, 255, 255)",
     storeCard: {
       headerFields: [
         {
@@ -379,8 +376,8 @@ export async function generatePkpass(card) {
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Prepare logo images (symbol in the header, next to logoText) */
-  const originalSymbol = await fetchBinary("/symbol-pass-bg-transparent.png");
+  /* 3. Prepare logo images (white symbol for dark background) */
+  const originalSymbol = await fetchBinary(symbolWhiteUrl);
   const logo1x = await resizeImage(originalSymbol, 50, 50);
   const logo2x = await resizeImage(originalSymbol, 100, 100);
   const logo3x = await resizeImage(originalSymbol, 150, 150);
