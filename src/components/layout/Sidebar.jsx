@@ -1,7 +1,6 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  HouseFill,
-  BarChartFill,
+  BarChart,
   CreditCard2Front,
   Link45deg,
   BoxArrowRight,
@@ -14,12 +13,12 @@ const navItems = [
   {
     label: "الإحصائيات",
     path: "/",
-    icon: BarChartFill,
+    icon: BarChart,
   },
   // {
   //   label: "الإحصائيات",
   //   path: "/stats",
-  //   icon: BarChartFill,
+  //   icon: BarChart,
   // },
   {
     label: "بطاقات الأذكار",
@@ -43,9 +42,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <aside
-      className={`fixed inset-y-0 right-0 z-40 flex w-64 flex-col bg-[#F2F2F2] transition-transform duration-200
+      className={`fixed inset-y-0 right-0 z-40 flex w-64 flex-col px-3 bg-[#F2F2F2] transition-transform duration-200
         ${isOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}
-      style={{borderTopLeftRadius: '22px', borderBottomLeftRadius: '22px'}}
+      style={{ borderBottomLeftRadius: '22px', height: 'fit-content' }}
     >
       {/* Logo */}
       <div className="flex items-center justify-between px-6 py-8">
@@ -68,10 +67,9 @@ export default function Sidebar({ isOpen, onClose }) {
             end={path === "/"}
             onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-pill px-4 py-3 text-sm font-medium transition-colors ${
-                isActive
-                  ? "bg-secondary text-surface"
-                  : "text-gray-400 hover:text-white hover:bg-[#398cbfba]"
+              `flex items-center gap-3 rounded-pill px-4 py-3 text-sm font-medium transition-colors ${isActive
+                ? "bg-secondary text-surface"
+                : "text-gray-400 hover:text-white hover:bg-[#398cbfba]"
               }`
             }
           >
@@ -82,7 +80,7 @@ export default function Sidebar({ isOpen, onClose }) {
       </nav>
 
       {/* Logout */}
-      <div className="px-4 pb-6">
+      <div className="px-4 pb-6 mt-4">
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-pill px-4 py-3 text-sm font-medium text-danger hover:bg-red-50 transition-colors"
