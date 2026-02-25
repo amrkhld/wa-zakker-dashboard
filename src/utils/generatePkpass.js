@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import forge from "node-forge";
-import symbolWhiteUrl from "../assets/logo/symbol-pass-white-bg-transparent.png";
+import logoFlatWhiteUrl from "../assets/logo/logo-flat-white-pass.png";
 
 /* ─── Apple Wallet pass credentials (from dhikr cert/info.json) ─── */
 const TEAM_IDENTIFIER = "D6GJ37W6QP";
@@ -121,20 +121,15 @@ async function renderDhikrStrip(text, hex) {
   const PX_W = PT_W * SCALE; // 1125
   const PX_H = PT_H * SCALE; // 369
 
-  const { r, g, b } = parseHex(hex);
-
   /* ── Design tokens (pt) ── */
-  const PAD_TOP_PT = 14;
-  const PAD_BOT_PT = 14;
-  const PAD_X_PT = 28;
-  const BOX_PAD_X_PT = 14;
-  const BOX_PAD_Y_PT = 14;
-  const BOX_RADIUS_PT = 14;
-  const MAX_FONT_PT = 16;
-  const MIN_FONT_PT = 9;
+  const PAD_TOP_PT = 5;
+  const PAD_BOT_PT = 5;
+  const PAD_X_PT = 36;
+  const MAX_FONT_PT = 20;
+  const MIN_FONT_PT = 11;
 
   const fontFamily = '"Somar Sans", "Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
-  const maxTextW = PX_W - (PAD_X_PT + BOX_PAD_X_PT) * 2 * SCALE;
+  const maxTextW = PX_W - PAD_X_PT * 2 * SCALE;
 
   /* ── Word-wrap helper ── */
   function measureLines(fontPt) {
@@ -162,7 +157,7 @@ async function renderDhikrStrip(text, hex) {
   /* ── How many lines fit at a given font size ── */
   function maxVisibleLines(fontPt) {
     const lineHPt = Math.round(fontPt * 1.8);
-    const usable = PT_H - PAD_TOP_PT - PAD_BOT_PT - BOX_PAD_Y_PT * 2;
+    const usable = PT_H - PAD_TOP_PT - PAD_BOT_PT;
     return Math.floor(usable / lineHPt);
   }
 
@@ -184,9 +179,6 @@ async function renderDhikrStrip(text, hex) {
   /* ── Scale to px ── */
   const padTop = PAD_TOP_PT * SCALE;
   const padX = PAD_X_PT * SCALE;
-  const boxPadX = BOX_PAD_X_PT * SCALE;
-  const boxPadY = BOX_PAD_Y_PT * SCALE;
-  const boxRadius = BOX_RADIUS_PT * SCALE;
   const fontPx = fontPt * SCALE;
   const lineH = lineHPt * SCALE;
 
@@ -194,31 +186,23 @@ async function renderDhikrStrip(text, hex) {
   const canvas = new OffscreenCanvas(PX_W, PX_H);
   const ctx = canvas.getContext("2d");
 
-  // Dark background
-  ctx.fillStyle = "#141419";
+  // Solid brand-color background (matches pass backgroundColor)
+  ctx.fillStyle = hex;
   ctx.fillRect(0, 0, PX_W, PX_H);
 
-  // Tinted rounded box (fills most of the strip)
-  const boxX = padX;
-  const boxY = padTop;
-  const boxW = PX_W - padX * 2;
-  const boxH = PX_H - padTop - PAD_BOT_PT * SCALE;
-
-  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
-  ctx.beginPath();
-  ctx.roundRect(boxX, boxY, boxW, boxH, boxRadius);
-  ctx.fill();
-
-  // Dhikr text (RTL, right-aligned) — white on dark bg
+  // Dhikr text — centered, white on brand bg
   ctx.fillStyle = "#FFFFFF";
   ctx.font = `500 ${fontPx}px ${fontFamily}`;
-  ctx.textAlign = "right";
+  ctx.textAlign = "center";
   ctx.direction = "rtl";
   ctx.textBaseline = "top";
 
-  let y = boxY + boxPadY;
+  // Vertically center the text block
+  const totalTextH = visibleLines.length * lineH;
+  const usableH = PX_H - padTop - PAD_BOT_PT * SCALE;
+  let y = padTop + (usableH - totalTextH) / 2;
   for (const line of visibleLines) {
-    ctx.fillText(line, boxX + boxW - boxPadX, y);
+    ctx.fillText(line, PX_W / 2, y);
     y += lineH;
   }
 
@@ -323,9 +307,8 @@ export async function generatePkpass(card) {
     teamIdentifier: TEAM_IDENTIFIER,
     organizationName: ORG_NAME,
     description: card.title,
-    logoText: "وَذَكِّرْ",
     foregroundColor: "rgb(255, 255, 255)",
-    backgroundColor: "rgb(20, 20, 25)",
+    backgroundColor: hexToRgb(card.color),
     labelColor: "rgb(255, 255, 255)",
     storeCard: {
       headerFields: [
@@ -376,11 +359,11 @@ export async function generatePkpass(card) {
   const icon2x = await resizeImage(originalIcon, 58, 58);
   const icon3x = await resizeImage(originalIcon, 87, 87);
 
-  /* 3. Prepare logo images (white symbol for dark background) */
-  const originalSymbol = await fetchBinary(symbolWhiteUrl);
-  const logo1x = await resizeImage(originalSymbol, 50, 50);
-  const logo2x = await resizeImage(originalSymbol, 100, 100);
-  const logo3x = await resizeImage(originalSymbol, 150, 150);
+  /* 3. Prepare logo images (flat white logo at 178×113 pt) */
+  const originalLogo = await fetchBinary(logoFlatWhiteUrl);
+  const logo1x = await resizeImage(originalLogo, 178, 113);
+  const logo2x = await resizeImage(originalLogo, 178 * 2, 113 * 2);
+  const logo3x = await resizeImage(originalLogo, 178 * 3, 113 * 3);
 
   /* 4. Prepare footer images (white logo for dark background) */
   const originalFooterLogo = await fetchBinary("/logo-flat-white-pass.png");
