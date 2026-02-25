@@ -31,6 +31,20 @@ function hexToRgb(hex) {
 }
 
 /**
+ * Lighten a hex color for use on dark backgrounds.
+ * Blends the original color toward white by the given amount (0–1).
+ */
+function lightenHex(hex, amount = 0.45) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const lr = Math.round(r + (255 - r) * amount);
+  const lg = Math.round(g + (255 - g) * amount);
+  const lb = Math.round(b + (255 - b) * amount);
+  return `rgb(${lr}, ${lg}, ${lb})`;
+}
+
+/**
  * SHA-1 hash of a Uint8Array (returns hex string).
  * Converts to a binary string so node-forge processes each byte correctly,
  * avoiding corruption of multi-byte UTF-8 characters (e.g. Arabic text).
@@ -109,14 +123,14 @@ async function renderDhikrStrip(text, hex) {
   const { r, g, b } = parseHex(hex);
 
   /* ── Design tokens (pt) ── */
-  const PAD_TOP_PT   = 14;
-  const PAD_BOT_PT   = 14;
-  const PAD_X_PT     = 28;
+  const PAD_TOP_PT = 14;
+  const PAD_BOT_PT = 14;
+  const PAD_X_PT = 28;
   const BOX_PAD_X_PT = 14;
   const BOX_PAD_Y_PT = 14;
   const BOX_RADIUS_PT = 14;
-  const MAX_FONT_PT  = 16;
-  const MIN_FONT_PT  = 9;
+  const MAX_FONT_PT = 16;
+  const MIN_FONT_PT = 9;
 
   const fontFamily = '"Geeza Pro", "Segoe UI", "SF Arabic", Arial, sans-serif';
   const maxTextW = PX_W - (PAD_X_PT + BOX_PAD_X_PT) * 2 * SCALE;
@@ -167,20 +181,20 @@ async function renderDhikrStrip(text, hex) {
   const visibleLines = lines.slice(0, maxLines);
 
   /* ── Scale to px ── */
-  const padTop  = PAD_TOP_PT * SCALE;
-  const padX    = PAD_X_PT * SCALE;
+  const padTop = PAD_TOP_PT * SCALE;
+  const padX = PAD_X_PT * SCALE;
   const boxPadX = BOX_PAD_X_PT * SCALE;
   const boxPadY = BOX_PAD_Y_PT * SCALE;
   const boxRadius = BOX_RADIUS_PT * SCALE;
-  const fontPx  = fontPt * SCALE;
-  const lineH   = lineHPt * SCALE;
+  const fontPx = fontPt * SCALE;
+  const lineH = lineHPt * SCALE;
 
   /* ── Draw on FIXED-SIZE canvas ── */
   const canvas = new OffscreenCanvas(PX_W, PX_H);
   const ctx = canvas.getContext("2d");
 
-  // White background
-  ctx.fillStyle = "#FFFFFF";
+  // Dark background
+  ctx.fillStyle = "#141419";
   ctx.fillRect(0, 0, PX_W, PX_H);
 
   // Tinted rounded box (fills most of the strip)
@@ -189,13 +203,17 @@ async function renderDhikrStrip(text, hex) {
   const boxW = PX_W - padX * 2;
   const boxH = PX_H - padTop - PAD_BOT_PT * SCALE;
 
-  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.04)`;
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
   ctx.beginPath();
   ctx.roundRect(boxX, boxY, boxW, boxH, boxRadius);
   ctx.fill();
 
-  // Dhikr text (RTL, right-aligned)
-  ctx.fillStyle = hex;
+  // Dhikr text (RTL, right-aligned) — lightened for dark bg
+  const { r: tr, g: tg, b: tb } = parseHex(hex);
+  const textR = Math.round(tr + (255 - tr) * 0.45);
+  const textG = Math.round(tg + (255 - tg) * 0.45);
+  const textB = Math.round(tb + (255 - tb) * 0.45);
+  ctx.fillStyle = `rgb(${textR}, ${textG}, ${textB})`;
   ctx.font = `500 ${fontPx}px ${fontFamily}`;
   ctx.textAlign = "right";
   ctx.direction = "rtl";
@@ -309,9 +327,9 @@ export async function generatePkpass(card) {
     organizationName: ORG_NAME,
     description: card.title,
     logoText: "وَذَكِّرْ",
-    foregroundColor: hexToRgb(card.color),
-    backgroundColor: "rgb(255, 255, 255)",
-    labelColor: hexToRgb(card.color),
+    foregroundColor: lightenHex(card.color, 0.45),
+    backgroundColor: "rgb(20, 20, 25)",
+    labelColor: lightenHex(card.color, 0.55),
     storeCard: {
       headerFields: [
         {
@@ -367,8 +385,8 @@ export async function generatePkpass(card) {
   const logo2x = await resizeImage(originalSymbol, 100, 100);
   const logo3x = await resizeImage(originalSymbol, 150, 150);
 
-  /* 4. Prepare footer images (brand logo at bottom of pass, above barcode area) */
-  const originalFooterLogo = await fetchBinary("/logo-pass-bg-transparent.png");
+  /* 4. Prepare footer images (white logo for dark background) */
+  const originalFooterLogo = await fetchBinary("/logo-flat-white-pass.png");
   // Determine aspect ratio to compute proper height
   const footerBlob = new Blob([originalFooterLogo], { type: "image/png" });
   const footerBitmap = await createImageBitmap(footerBlob);
